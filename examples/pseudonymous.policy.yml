@@ -1,0 +1,7 @@
+mode: pseudonymous
+ipv4:
+  preserve_bits: 0
+ipv6:
+  preserve_bits: 0
+verification:
+  fail_on_raw_leak: true

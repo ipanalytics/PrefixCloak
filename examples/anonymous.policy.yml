@@ -1,0 +1,7 @@
+mode: anonymous
+ipv4:
+  truncate_prefix: 24
+ipv6:
+  truncate_prefix: 48
+verification:
+  fail_on_raw_leak: true
