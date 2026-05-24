@@ -13,6 +13,8 @@ import (
 	"prefixcloak/internal/policy"
 )
 
+var version = "dev"
+
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "prefixcloak:", err)
@@ -34,6 +36,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		keyFile     = fs.String("key-file", "", "file containing key as hex, base64, hex:<value>, or base64:<value>")
 		genKey      = fs.Bool("generate-key", false, "generate a new PrefixCloak key and print it")
 		printReport = fs.Bool("report", true, "print a GDPR-aware processing report to stderr")
+		showVersion = fs.Bool("version", false, "print version and exit")
 	)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -45,6 +48,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 			return err
 		}
 		fmt.Fprintf(stdout, "hex:%s\nbase64:%s\n", hex.EncodeToString(key), base64.StdEncoding.EncodeToString(key))
+		return nil
+	}
+	if *showVersion {
+		fmt.Fprintln(stdout, version)
 		return nil
 	}
 
