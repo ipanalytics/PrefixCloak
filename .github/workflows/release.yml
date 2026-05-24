@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v0.1.0"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark this release as a prerelease"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+          - goos: linux
+            goarch: arm64
+            ext: ""
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+          - goos: windows
+            goarch: amd64
+            ext: ".exe"
+          - goos: windows
+            goarch: arm64
+            ext: ".exe"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          go build \
+            -trimpath \
+            -ldflags "-s -w -X main.version=${{ inputs.tag }}" \
+            -o "dist/prefixcloak${{ matrix.ext }}" \
+            ./cmd/prefixcloak
+
+      - name: Package archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="prefixcloak_${{ inputs.tag }}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "dist/${name}"
+          cp "dist/prefixcloak${{ matrix.ext }}" "dist/${name}/"
+          cp README.md LICENSE "dist/${name}/"
+          if [[ "${{ matrix.goos }}" == "windows" ]]; then
+            (cd dist && zip -r "${name}.zip" "${name}")
+          else
+            tar -C dist -czf "dist/${name}.tar.gz" "${name}"
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prefixcloak-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > checksums.txt
+
+      - name: Create release notes
+        run: |
+          cat > release-notes.md <<'EOF'
+          PrefixCloak release ${{ inputs.tag }}.
+
+          Download the archive for your OS and CPU architecture, then verify it with `checksums.txt`.
+
+          Example:
+
+          ```sh
+          sha256sum -c checksums.txt
+          ```
+          EOF
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          args=()
+          if [[ "${{ inputs.prerelease }}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${{ inputs.tag }}" \
+            dist/*.tar.gz dist/*.zip dist/checksums.txt \
+            --target "${{ github.sha }}" \
+            --title "PrefixCloak ${{ inputs.tag }}" \
+            --notes-file release-notes.md \
+            "${args[@]}"
