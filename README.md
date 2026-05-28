@@ -4,6 +4,10 @@
 
 PrefixCloak is a local-first CLI for sanitizing IP addresses in logs before they leave a trusted boundary. It rewrites IPv4 and IPv6 addresses with an AES-based prefix-preserving transform, then can optionally truncate host bits for many-to-one anonymous output.
 
+<p>
+  <img src="./site/banner.png" alt="PrefixCloak" width="100%">
+</p>
+
 The point is not to make random fake IPs. The point is to keep operational analytics useful while removing raw endpoints from log streams, exports, tickets, data lake jobs, and external handoffs.
 
 
